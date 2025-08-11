@@ -262,6 +262,67 @@ router.post('/resend-otp', [
   }
 });
 
+// Admin login with email and password
+router.post('/admin-login', [
+  body('email').isEmail().withMessage('Please include a valid email'),
+  body('password').notEmpty().withMessage('Password is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+
+    // Get user by email
+    const user = await userModel.getByEmail(email);
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Check if user is admin
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin login only.' });
+    }
+
+    // For now, use a hardcoded admin password since password column doesn't exist
+    // TODO: Add password column to users table in Supabase dashboard
+    const adminPassword = 'admin123'; // Change this in production
+    
+    if (password !== adminPassword) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    };
+
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' }, (err, token) => {
+      if (err) throw err;
+      res.json({ 
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+    });
+
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get current user
 router.get('/me', auth, async (req, res) => {
   try {
