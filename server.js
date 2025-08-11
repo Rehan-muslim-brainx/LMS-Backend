@@ -3,14 +3,27 @@ const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config({ path: './config.env' });
+require('dotenv').config({ path: __dirname + '/config.env' });
+
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust proxy for rate limiting
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
-app.use(cors());
+
+// CORS configuration
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -46,6 +59,16 @@ app.use('/api/lessons', require('./routes/lessons'));
 app.use('/api/enrollments', require('./routes/enrollments'));
 app.use('/api/assets', require('./routes/assets'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/departments', require('./routes/departments'));
+
+// Test endpoint for debugging
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working!', 
+    timestamp: new Date().toISOString(),
+    cors: 'enabled'
+  });
+});
 
 // Serve uploaded files statically
 app.use('/uploads', (req, res, next) => {

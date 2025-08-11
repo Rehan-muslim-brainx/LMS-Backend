@@ -53,6 +53,8 @@ class OTP {
   async verifyOTP(email, otp, purpose = 'login') {
     await this._checkSupabase();
 
+    console.log('Verifying OTP:', { email, otp: otp.substring(0, 2) + '****', purpose });
+
     const { data, error } = await this.supabase
       .from('otps')
       .select('*')
@@ -62,19 +64,39 @@ class OTP {
       .eq('used', false)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
 
-    if (error || !data) {
+    console.log('OTP query result:', { data, error });
+
+    if (error) {
       console.error('Verify OTP error:', error);
       return false;
     }
 
+    if (!data || data.length === 0) {
+      console.log('No valid OTP found for:', { email, otp: otp.substring(0, 2) + '****', purpose });
+      
+      // Let's also check what OTPs exist for this email
+      const { data: allOtps } = await this.supabase
+        .from('otps')
+        .select('*')
+        .eq('email', email)
+        .order('created_at', { ascending: false });
+      
+      console.log('All OTPs for this email:', allOtps);
+      return false;
+    }
+
+    const otpRecord = data[0];
+    console.log('Found valid OTP:', otpRecord);
+
     // Mark OTP as used
-    await this.supabase
+    const updateResult = await this.supabase
       .from('otps')
       .update({ used: true })
-      .eq('id', data.id);
+      .eq('id', otpRecord.id);
+
+    console.log('OTP marked as used:', updateResult);
 
     return true;
   }

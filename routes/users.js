@@ -172,4 +172,108 @@ router.put('/:id/password', [
   }
 });
 
+// Admin: Delete user
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    // Only admin can delete users
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can delete users.' });
+    }
+
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    
+    // Check if user exists
+    const user = await userModel.getById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Prevent admin from deleting themselves
+    if (id === req.user.id) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
+    // Prevent deleting other admins
+    if (user.role === 'admin') {
+      return res.status(400).json({ message: 'Cannot delete admin users' });
+    }
+
+    await userModel.delete(id);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Block user
+router.put('/:id/block', auth, async (req, res) => {
+  try {
+    // Only admin can block users
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can block users.' });
+    }
+
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    
+    // Check if user exists
+    const user = await userModel.getById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Prevent admin from blocking themselves
+    if (id === req.user.id) {
+      return res.status(400).json({ message: 'You cannot block your own account' });
+    }
+
+    // Prevent blocking other admins
+    if (user.role === 'admin') {
+      return res.status(400).json({ message: 'Cannot block admin users' });
+    }
+
+    const updatedUser = await userModel.blockUser(id);
+    res.json({ 
+      message: 'User blocked successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Block user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Unblock user
+router.put('/:id/unblock', auth, async (req, res) => {
+  try {
+    // Only admin can unblock users
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can unblock users.' });
+    }
+
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    
+    // Check if user exists
+    const user = await userModel.getById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updatedUser = await userModel.unblockUser(id);
+    res.json({ 
+      message: 'User unblocked successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Unblock user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router; 

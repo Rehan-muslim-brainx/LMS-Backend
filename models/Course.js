@@ -50,6 +50,22 @@ class Course {
     return data;
   }
 
+  // Get courses by department
+  async getByDepartment(department) {
+    const { data, error } = await this.supabase
+      .from('courses')
+      .select(`
+        *,
+        instructor:users(name, email),
+        lessons:lessons(count)
+      `)
+      .eq('department', department)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+  }
+
   // Create new course
   async create(courseData) {
     const { data, error } = await this.supabase

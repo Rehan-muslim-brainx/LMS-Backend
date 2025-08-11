@@ -17,13 +17,13 @@ const supabase = createClient(
 );
 
 const userModel = new User(supabase);
-const otpModel = new OTP();
 
-// Step 1: Register - Send OTP to email
+// Register endpoint - Start OTP process
 router.post('/register', [
   body('name').notEmpty().withMessage('Name is required'),
-  body('email').isEmail().withMessage('Please include a valid email'),
-  body('role').notEmpty().withMessage('Role is required')
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('role').notEmpty().withMessage('Role is required'),
+  body('department').notEmpty().withMessage('Department is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -31,32 +31,70 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, email, role } = req.body;
+    const { name, email, role, department } = req.body;
 
-    // Validate role - Only allow non-admin roles for registration
-    const allowedRoles = ['project_coordinator', 'associate_project_manager', 'assistant_project_manager', 'principal_software_engineer'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ message: 'Invalid role. Admin role cannot be assigned during registration.' });
+    // Validate email domain - Only allow @brainxtech.com emails
+    if (!email.endsWith('@brainxtech.com')) {
+      return res.status(400).json({ message: 'Please use Brainxtech email address' });
     }
 
-    // Check if user already exists
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    const Department = require('../models/Department');
+    const departmentModel = new Department(supabase);
+
+    // Get all departments to validate the selected department and role
+    const departments = await departmentModel.getAll();
+    const selectedDepartment = departments.find(dept => dept.name === department);
+
+    if (!selectedDepartment) {
+      return res.status(400).json({ message: 'Invalid department. Please select a valid department.' });
+    }
+
+    // Validate role against the selected department's available roles
+    if (!selectedDepartment.roles.includes(role)) {
+      return res.status(400).json({ 
+        message: `Invalid role for ${department} department. Available roles: ${selectedDepartment.roles.join(', ')}` 
+      });
+    }
+
+    // Check if user already exists (email should be unique)
     const emailExists = await userModel.emailExists(email);
     if (emailExists) {
-      return res.status(400).json({ message: 'User already exists with this email' });
+      return res.status(400).json({ message: 'An account with this email already exists.' });
     }
 
-    // Generate and send OTP
+    // Initialize OTP model
+    const otpModel = new OTP();
+
+    // Generate OTP
     const otp = otpModel.generateOTP();
+    console.log(`Generated OTP for ${email}: ${otp}`);
+
+    // Create OTP in database
     await otpModel.createOTP(email, otp, 'registration');
-    await emailService.sendOTP(email, otp, 'registration');
 
-    // Store temporary user data in session or cache (for now, we'll send it back)
-    res.json({ 
-      message: 'OTP sent to your email. Please verify to complete registration.',
-      tempUserData: { name, email, role },
-      requiresOTP: true
-    });
+    // Store temporary user data
+    const tempUserData = {
+      name,
+      email,
+      role,
+      department,
+      otp,
+      otp_expires: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+    };
 
+    // Send OTP email
+    try {
+      await emailService.sendOTP(email, otp, 'registration');
+      res.json({ 
+        message: 'OTP sent to your email. Please check your inbox.',
+        email: email.replace(/(.{2})(.*)(@.*)/, '$1***$3') // Partially hide email
+      });
+    } catch (emailError) {
+      console.error('Failed to send OTP email:', emailError);
+      res.status(500).json({ message: 'Failed to send OTP email. Please try again.' });
+    }
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -68,7 +106,8 @@ router.post('/verify-registration', [
   body('email').isEmail().withMessage('Please include a valid email'),
   body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
   body('name').notEmpty().withMessage('Name is required'),
-  body('role').notEmpty().withMessage('Role is required')
+  body('role').notEmpty().withMessage('Role is required'),
+  body('department').notEmpty().withMessage('Department is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -76,18 +115,45 @@ router.post('/verify-registration', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, otp, name, role } = req.body;
+    const { email, otp, name, role, department } = req.body;
 
-    // Validate role - Only allow non-admin roles for registration
-    const allowedRoles = ['project_coordinator', 'associate_project_manager', 'assistant_project_manager', 'principal_software_engineer'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ message: 'Invalid role. Admin role cannot be assigned during registration.' });
+    // Validate email domain - Only allow @brainxtech.com emails
+    if (!email.endsWith('@brainxtech.com')) {
+      return res.status(400).json({ message: 'Please use Brainxtech email address' });
+    }
+
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    const Department = require('../models/Department');
+    const departmentModel = new Department(supabase);
+
+    // Get all departments to validate the selected department and role
+    const departments = await departmentModel.getAll();
+    const selectedDepartment = departments.find(dept => dept.name === department);
+
+    if (!selectedDepartment) {
+      return res.status(400).json({ message: 'Invalid department. Please select a valid department.' });
+    }
+
+    // Validate role against the selected department's available roles
+    if (!selectedDepartment.roles.includes(role)) {
+      return res.status(400).json({ 
+        message: `Invalid role for ${department} department. Available roles: ${selectedDepartment.roles.join(', ')}` 
+      });
     }
 
     // Verify OTP
+    const otpModel = new OTP();
     const isValidOTP = await otpModel.verifyOTP(email, otp, 'registration');
+    
     if (!isValidOTP) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // Check if user already exists (email should be unique)
+    const emailExists = await userModel.emailExists(email);
+    if (emailExists) {
+      return res.status(400).json({ message: 'An account with this email already exists.' });
     }
 
     // Create user
@@ -95,40 +161,36 @@ router.post('/verify-registration', [
       name,
       email,
       role,
-      is_verified: true,
+      department,
+      status: 'active',
       created_at: new Date().toISOString()
     };
 
     const user = await userModel.create(userData);
 
-    // Clean up OTPs for this email
+    // Clean up OTP
     await otpModel.deleteOTPsForEmail(email);
 
     // Generate JWT token
-    const payload = {
+    const token = jwt.sign(
+      { user: { id: user.id, email: user.email, role: user.role, department: user.department } },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      message: 'Registration completed successfully',
+      token,
       user: {
         id: user.id,
-        email: user.email,
         name: user.name,
-        role: user.role
+        email: user.email,
+        role: user.role,
+        department: user.department
       }
-    };
-
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' }, (err, token) => {
-      if (err) throw err;
-      res.json({ 
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        }
-      });
     });
-
   } catch (error) {
-    console.error('Verify registration error:', error);
+    console.error('OTP verification error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -152,6 +214,7 @@ router.post('/login', [
     }
 
     // Generate and send OTP
+    const otpModel = new OTP();
     const otp = otpModel.generateOTP();
     await otpModel.createOTP(email, otp, 'login');
     await emailService.sendOTP(email, otp, 'login');
@@ -182,6 +245,7 @@ router.post('/verify-login', [
     const { email, otp } = req.body;
 
     // Verify OTP
+    const otpModel = new OTP();
     const isValidOTP = await otpModel.verifyOTP(email, otp, 'login');
     if (!isValidOTP) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
@@ -247,6 +311,7 @@ router.post('/resend-otp', [
     }
 
     // Clean up old OTPs
+    const otpModel = new OTP();
     await otpModel.deleteOTPsForEmail(email);
 
     // Generate and send new OTP
@@ -300,7 +365,8 @@ router.post('/admin-login', [
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        department: user.department || null
       }
     };
 
@@ -312,7 +378,8 @@ router.post('/admin-login', [
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          department: user.department || null
         }
       });
     });
@@ -335,7 +402,8 @@ router.get('/me', auth, async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      department: user.department
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -346,6 +414,7 @@ router.get('/me', auth, async (req, res) => {
 // Cleanup expired OTPs (background job)
 setInterval(async () => {
   try {
+    const otpModel = new OTP(); // Re-initialize otpModel for cleanup
     await otpModel.cleanupExpiredOTPs();
   } catch (error) {
     console.error('OTP cleanup error:', error);

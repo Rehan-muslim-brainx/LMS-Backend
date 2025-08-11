@@ -107,6 +107,42 @@ class User {
       return false;
     }
   }
+
+  // Block user
+  async blockUser(userId) {
+    const { data, error } = await this.supabase
+      .from('users')
+      .update({ status: 'blocked' })
+      .eq('id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Unblock user
+  async unblockUser(userId) {
+    const { data, error } = await this.supabase
+      .from('users')
+      .update({ status: 'active' })
+      .eq('id', userId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Check if user is blocked
+  async isBlocked(userId) {
+    try {
+      const user = await this.getById(userId);
+      return user && user.status === 'blocked';
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 module.exports = User; 

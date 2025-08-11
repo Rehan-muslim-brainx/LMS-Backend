@@ -63,7 +63,7 @@ class Enrollment {
       .from('enrollments')
       .select(`
         *,
-        user:users!enrollments_user_id_fkey(name, email)
+        user:users!enrollments_user_id_fkey(name, email, department)
       `)
       .eq('course_id', courseId)
       .order('enrolled_at', { ascending: false });
@@ -78,7 +78,7 @@ class Enrollment {
       .from('enrollments')
       .select(`
         *,
-        user:users!enrollments_user_id_fkey(name, email),
+        user:users!enrollments_user_id_fkey(name, email, department),
         course:courses(title, description)
       `)
       .eq('status', 'completion_requested')
@@ -94,7 +94,7 @@ class Enrollment {
       .from('enrollments')
       .select(`
         *,
-        user:users!enrollments_user_id_fkey(name, email),
+        user:users!enrollments_user_id_fkey(name, email, department),
         course:courses(title, description),
         admin_approver:users!enrollments_admin_approved_by_fkey(name, email)
       `)

@@ -11,7 +11,35 @@ router.get('/', async (req, res) => {
     const supabase = req.app.locals.supabase;
     const courseModel = new Course(supabase);
     
-    const courses = await courseModel.getAll();
+    // Check if user is authenticated to filter by department
+    const authHeader = req.header('Authorization');
+    let userDepartment = null;
+    let userRole = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userDepartment = decoded.user.department;
+        userRole = decoded.user.role;
+      } catch (error) {
+        // Invalid token, proceed without filtering
+      }
+    }
+    
+    let courses;
+    if (userRole === 'admin') {
+      // Admin can see all courses
+      courses = await courseModel.getAll();
+    } else if (userDepartment) {
+      // Regular users see only their department courses
+      courses = await courseModel.getByDepartment(userDepartment);
+    } else {
+      // Unauthenticated users see all courses (for public view)
+      courses = await courseModel.getAll();
+    }
+    
     res.json(courses);
   } catch (error) {
     console.error('Get courses error:', error);
@@ -43,7 +71,8 @@ router.post('/', [
   auth,
   body('title').notEmpty().withMessage('Title is required'),
   body('description').notEmpty().withMessage('Description is required'),
-  body('category').notEmpty().withMessage('Category is required')
+  body('category').notEmpty().withMessage('Category is required'),
+  body('department').notEmpty().withMessage('Department is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -51,20 +80,33 @@ router.post('/', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // Check if user has permission to create courses
-    const allowedRoles = ['associate_project_manager', 'assistant_project_manager', 'principal_software_engineer', 'admin'];
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access denied' });
+    // Check if user has permission to create courses (only admin can create courses)
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can create courses.' });
+    }
+
+    const supabase = req.app.locals.supabase;
+    // Validate department
+    const { department } = req.body;
+    const Department = require('../models/Department');
+    const departmentModel = new Department(supabase);
+    
+    // Get all departments to validate the selected department
+    const departments = await departmentModel.getAll();
+    const validDepartment = departments.find(dept => dept.name === department);
+    
+    if (!department || !validDepartment) {
+      return res.status(400).json({ message: 'Invalid department. Please select a valid department.' });
     }
 
     const { title, description, category, price, duration, image_url, document_url, external_link } = req.body;
-    const supabase = req.app.locals.supabase;
     const courseModel = new Course(supabase);
 
     const courseData = {
       title,
       description,
       category,
+      department: department || 'General',
       price: price || 0,
       duration: duration || 0,
       image_url: image_url || null,
