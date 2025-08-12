@@ -151,10 +151,26 @@ router.put('/:id', [
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Validate department if provided
+    const { department } = req.body;
+    if (department) {
+      const Department = require('../models/Department');
+      const departmentModel = new Department(supabase);
+      
+      // Get all departments to validate the selected department
+      const departments = await departmentModel.getAll();
+      const validDepartment = departments.find(dept => dept.name === department);
+      
+      if (!validDepartment) {
+        return res.status(400).json({ message: 'Invalid department. Please select a valid department.' });
+      }
+    }
+
     const updates = {
       title: req.body.title,
       description: req.body.description,
       category: req.body.category,
+      department: req.body.department,
       price: req.body.price,
       duration: req.body.duration,
       image_url: req.body.image_url,
