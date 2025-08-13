@@ -16,13 +16,35 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(helmet());
 
-// CORS configuration - Allow all origins
+// CORS configuration - Allow all origins with detailed logging
 app.use(cors({
-  origin: true, // Allow all origins
+  origin: function (origin, callback) {
+    console.log('CORS request from origin:', origin);
+    // Allow all origins (including no origin for mobile apps, Postman, etc.)
+    callback(null, true);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
 }));
+
+// Additional manual CORS headers as backup
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('Handling preflight request for:', req.url);
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
