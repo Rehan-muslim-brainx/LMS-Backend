@@ -59,6 +59,25 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Test endpoint for debugging
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'LMS Backend API is running on Vercel',
+    status: 'success',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Test endpoint for API
+app.get('/api', (req, res) => {
+  res.json({ 
+    message: 'LMS API is working',
+    status: 'success',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
@@ -76,37 +95,30 @@ if (supabaseUrl !== 'https://your-project.supabase.co') {
 // Make supabase available to routes
 app.locals.supabase = supabase;
 
-// Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/courses', require('./routes/courses'));
-app.use('/api/lessons', require('./routes/lessons'));
-app.use('/api/enrollments', require('./routes/enrollments'));
-app.use('/api/assets', require('./routes/assets'));
-app.use('/api/upload', require('./routes/upload'));
-app.use('/api/departments', require('./routes/departments'));
+// Routes with error handling
+try {
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/courses', require('./routes/courses'));
+  app.use('/api/users', require('./routes/users'));
+  app.use('/api/enrollments', require('./routes/enrollments'));
+  app.use('/api/lessons', require('./routes/lessons'));
+  app.use('/api/upload', require('./routes/upload'));
+  app.use('/api/departments', require('./routes/departments'));
+  console.log('✅ All routes loaded successfully');
+} catch (error) {
+  console.error('❌ Error loading routes:', error);
+}
 
-// Test endpoint for debugging
+// Serve uploaded files statically (simplified for Vercel)
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res, path) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+  }
+}));
+
+// Test route for debugging
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Backend is working!', 
-    timestamp: new Date().toISOString(),
-    cors: 'enabled'
-  });
-});
-
-// Serve uploaded files statically
-app.use('/uploads', (req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  // Remove CSP headers for static files to allow cross-origin access
-  res.removeHeader('Content-Security-Policy');
-  next();
-}, express.static('uploads'));
-
-// Basic route
-app.get('/', (req, res) => {
   res.json({ 
     message: 'LMS API is running',
     status: 'success',
@@ -117,8 +129,20 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  console.error('Server error:', err);
+  res.status(500).json({ 
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    message: 'Route not found',
+    path: req.path,
+    method: req.method
+  });
 });
 
 // Start server (only in development, not on Vercel)
