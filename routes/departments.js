@@ -7,14 +7,28 @@ const Department = require('../models/Department');
 // Get all departments
 router.get('/', async (req, res) => {
   try {
+    console.log('🏢 Departments GET request received');
     const supabase = req.app.locals.supabase;
+    
+    if (!supabase) {
+      console.error('❌ Supabase client not available');
+      return res.status(500).json({ message: 'Database connection not available' });
+    }
+    
+    console.log('✅ Supabase client available, creating Department model');
     const departmentModel = new Department(supabase);
+    
+    console.log('📊 Fetching departments from database...');
     const departments = await departmentModel.getAll();
     
+    console.log('✅ Departments fetched successfully:', departments?.length || 0, 'departments');
     res.json(departments);
   } catch (error) {
-    console.error('Get departments error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Get departments error:', error);
+    res.status(500).json({ 
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
