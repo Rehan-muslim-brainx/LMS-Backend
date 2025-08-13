@@ -95,35 +95,36 @@ if (supabaseUrl !== 'https://your-project.supabase.co') {
 // Make supabase available to routes
 app.locals.supabase = supabase;
 
-// Routes with individual error handling
-const routes = [
-  { path: '/api/auth', file: './routes/auth' },
-  { path: '/api/courses', file: './routes/courses' },
-  { path: '/api/users', file: './routes/users' },
-  { path: '/api/enrollments', file: './routes/enrollments' },
-  { path: '/api/lessons', file: './routes/lessons' },
-  { path: '/api/upload', file: './routes/upload' },
-  { path: '/api/departments', file: './routes/departments' }
-];
-
-routes.forEach(route => {
+// Routes with error handling
+try {
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/courses', require('./routes/courses'));
+  app.use('/api/users', require('./routes/users'));
+  app.use('/api/enrollments', require('./routes/enrollments'));
+  app.use('/api/lessons', require('./routes/lessons'));
+  app.use('/api/upload', require('./routes/upload'));
+  
+  // Special handling for departments route
   try {
-    app.use(route.path, require(route.file));
-    console.log(`✅ Route loaded: ${route.path}`);
-  } catch (error) {
-    console.error(`❌ Failed to load route ${route.path}:`, error.message);
+    console.log('🏢 Loading departments route...');
+    const departmentsRouter = require('./routes/departments');
+    app.use('/api/departments', departmentsRouter);
+    console.log('✅ Departments route loaded successfully');
+  } catch (deptError) {
+    console.error('❌ Failed to load departments route:', deptError);
+    // Add a fallback route for departments
+    app.get('/api/departments', (req, res) => {
+      res.status(500).json({ 
+        message: 'Departments service unavailable',
+        error: 'Route loading failed'
+      });
+    });
   }
-});
-
-console.log('📋 Route loading completed');
-
-// Test route to verify departments path works
-app.get('/api/departments/test', (req, res) => {
-  res.json({ 
-    message: 'Departments route is accessible',
-    timestamp: new Date().toISOString()
-  });
-});
+  
+  console.log('✅ All routes loaded successfully');
+} catch (error) {
+  console.error('❌ Error loading routes:', error);
+}
 
 // Serve uploaded files statically (simplified for Vercel)
 app.use('/uploads', express.static('uploads', {
