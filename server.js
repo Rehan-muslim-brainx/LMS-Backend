@@ -112,13 +112,80 @@ try {
     console.log('✅ Departments route loaded successfully');
   } catch (deptError) {
     console.error('❌ Failed to load departments route:', deptError);
-    // Add a fallback route for departments
-    app.get('/api/departments', (req, res) => {
-      res.status(500).json({ 
-        message: 'Departments service unavailable',
-        error: 'Route loading failed'
-      });
+    
+    // Fallback: Create inline departments routes
+    console.log('🔄 Creating fallback inline departments routes...');
+    
+    // GET all departments
+    app.get('/api/departments', async (req, res) => {
+      try {
+        console.log('🏢 Inline departments GET request');
+        const supabase = req.app.locals.supabase;
+        
+        if (!supabase) {
+          return res.status(500).json({ message: 'Database connection not available' });
+        }
+        
+        const { data, error } = await supabase
+          .from('departments')
+          .select('*')
+          .order('name');
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          return res.status(500).json({ message: 'Database error' });
+        }
+        
+        console.log('✅ Departments fetched:', data?.length || 0);
+        res.json(data || []);
+      } catch (error) {
+        console.error('❌ Inline departments GET error:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
     });
+    
+    // POST new department (admin only)
+    app.post('/api/departments', async (req, res) => {
+      try {
+        console.log('🏢 Inline departments POST request');
+        const supabase = req.app.locals.supabase;
+        
+        if (!supabase) {
+          return res.status(500).json({ message: 'Database connection not available' });
+        }
+        
+        const { name, description, roles } = req.body;
+        
+        if (!name || !roles || !Array.isArray(roles)) {
+          return res.status(400).json({ message: 'Name and roles are required' });
+        }
+        
+        const departmentData = {
+          name: name.trim(),
+          roles: roles.map(role => role.trim()),
+          description: description?.trim() || '',
+          created_at: new Date().toISOString()
+        };
+        
+        const { data, error } = await supabase
+          .from('departments')
+          .insert([departmentData])
+          .select();
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          return res.status(500).json({ message: 'Database error' });
+        }
+        
+        console.log('✅ Department created:', data[0]);
+        res.status(201).json(data[0]);
+      } catch (error) {
+        console.error('❌ Inline departments POST error:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    });
+    
+    console.log('✅ Fallback departments routes created');
   }
   
   console.log('✅ All routes loaded successfully');
