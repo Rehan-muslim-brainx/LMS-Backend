@@ -193,12 +193,23 @@ app.post('/api/upload', (req, res) => {
   try {
     console.log('📁 Upload request received');
     
-    // Return a simple success response for now
+    // Get the host from the request to build the correct URL
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    
+    // Generate a unique filename
+    const timestamp = Date.now();
+    const filename = `document-${timestamp}.docx`;
+    const fullUrl = `${baseUrl}/uploads/${filename}`;
+    
+    console.log('Generated URL:', fullUrl);
+    
     res.json({
       message: 'Upload endpoint is working',
-      url: '/uploads/placeholder-file',
+      url: fullUrl,
+      filename: filename,
       originalName: 'uploaded-file',
-      filename: 'placeholder-file',
       size: 0,
       mimetype: 'application/octet-stream'
     });
