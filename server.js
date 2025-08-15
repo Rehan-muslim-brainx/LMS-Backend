@@ -102,14 +102,8 @@ try {
   app.use('/api/users', require('./routes/users'));
   app.use('/api/enrollments', require('./routes/enrollments'));
   app.use('/api/lessons', require('./routes/lessons'));
-  app.use('/api/upload', require('./routes/upload'));
-  
-  // Special handling for departments route
-  // Temporarily bypass the departments route file and use inline routes
-  console.log('🏢 Using inline departments routes for production...');
-  
-  console.log('✅ Inline departments routes created');
-  
+  // Upload route is now handled inline above
+  app.use('/api/departments', require('./routes/departments'));
   console.log('✅ All routes loaded successfully');
 } catch (error) {
   console.error('❌ Error loading routes:', error);
@@ -191,6 +185,95 @@ app.post('/api/departments', async (req, res) => {
 
 console.log('✅ Departments routes are now available');
 
+// Define upload routes OUTSIDE the try-catch to ensure they're always available
+console.log('📁 Setting up upload routes...');
+
+// Import multer for file uploads
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'image/jpeg',
+    'image/png',
+    'image/gif'
+  ];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only PDF, DOC, DOCX, PPT, PPTX, TXT, and image files are allowed.'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
+
+// File upload endpoint
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  try {
+    console.log('📁 Upload request received');
+    
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Return file information
+    const fileUrl = `/uploads/${req.file.filename}`;
+    
+    res.json({
+      message: 'File uploaded successfully',
+      url: fileUrl,
+      originalName: req.file.originalname,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+  } catch (error) {
+    console.error('❌ Upload error:', error);
+    res.status(500).json({ message: 'Error uploading file' });
+  }
+});
+
+// Serve uploaded files
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+  }
+}));
+
+console.log('✅ Upload routes are now available');
+
 // Test route to verify routing is working
 app.get('/api/debug', (req, res) => {
   res.json({ 
@@ -199,14 +282,6 @@ app.get('/api/debug', (req, res) => {
     routes: ['/api/departments', '/api/courses', '/api/users']
   });
 });
-
-// Serve uploaded files statically (simplified for Vercel)
-app.use('/uploads', express.static('uploads', {
-  setHeaders: (res, path) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET');
-  }
-}));
 
 // Test route for debugging
 app.get('/api/test', (req, res) => {
