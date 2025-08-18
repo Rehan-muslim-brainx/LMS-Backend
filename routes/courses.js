@@ -29,8 +29,8 @@ router.get('/', async (req, res) => {
     }
     
     let courses;
-    if (userRole === 'admin') {
-      // Admin can see all courses
+    if (userRole === 'admin' || userRole === 'general') {
+      // Admin and general role users can see all courses
       courses = await courseModel.getAll();
     } else if (userDepartment) {
       // Regular users see only their department courses
@@ -80,9 +80,9 @@ router.post('/', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // Check if user has permission to create courses (only admin can create courses)
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Only admin can create courses.' });
+    // Check if user has permission to create courses (admin or general role can create courses)
+    if (req.user.role !== 'admin' && req.user.role !== 'general') {
+      return res.status(403).json({ message: 'Access denied. Only admin or general role users can create courses.' });
     }
 
     const supabase = req.app.locals.supabase;
