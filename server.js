@@ -3,8 +3,8 @@ const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 require('dotenv').config({ path: __dirname + '/config.env' });
-
 
 
 const app = express();
@@ -48,6 +48,27 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static uploads (even though they're placeholder for now)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Fallback route for uploads - return a sample document
+app.get('/uploads/*', (req, res) => {
+  try {
+    console.log('📁 Upload file request:', req.path);
+    
+    // For now, return a simple text file as response
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename="course-document.docx"');
+    
+    // Simple placeholder content
+    const content = 'This is a placeholder document for the course. Actual file upload functionality will be implemented later.';
+    res.send(content);
+  } catch (error) {
+    console.error('❌ Upload serve error:', error);
+    res.status(404).json({ message: 'File not found' });
+  }
+});
 
 // Rate limiting - More lenient for development
 const limiter = rateLimit({
