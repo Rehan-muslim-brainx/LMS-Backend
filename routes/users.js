@@ -23,78 +23,75 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Get user by ID
-router.get('/:id', auth, async (req, res) => {
+// Admin: Block user (MUST come before /:id routes)
+router.put('/:id/block', auth, async (req, res) => {
   try {
+    // Only admin can block users
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can block users.' });
+    }
+
     const { id } = req.params;
     const supabase = req.app.locals.supabase;
     const userModel = new User(supabase);
     
-    // Users can only view their own profile or admin can view any
-    if (req.user.id !== id && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-    
-    const user = await userModel.getById(id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Remove password from response
-    const { password: _, ...userResponse } = user;
-    res.json(userResponse);
-  } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Update user profile
-router.put('/:id', [
-  auth,
-  body('name').notEmpty().withMessage('Name is required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { id } = req.params;
-    
-    // Users can only update their own profile or admin can update any
-    if (req.user.id !== id && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const supabase = req.app.locals.supabase;
-    const userModel = new User(supabase);
-
-    // Get user to verify exists
+    // Check if user exists
     const user = await userModel.getById(id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const updates = {
-      name: req.body.name,
-      bio: req.body.bio,
-      avatar_url: req.body.avatar_url,
-      updated_at: new Date().toISOString()
-    };
+    // Prevent admin from blocking themselves
+    if (id === req.user.id) {
+      return res.status(400).json({ message: 'You cannot block your own account' });
+    }
 
-    const updatedUser = await userModel.update(id, updates);
-    
-    // Remove password from response
-    const { password: _, ...userResponse } = updatedUser;
-    res.json(userResponse);
+    // Prevent blocking other admins
+    if (user.role === 'admin') {
+      return res.status(400).json({ message: 'Cannot block admin users' });
+    }
+
+    const updatedUser = await userModel.blockUser(id);
+    res.json({ 
+      message: 'User blocked successfully',
+      user: updatedUser
+    });
   } catch (error) {
-    console.error('Update user error:', error);
+    console.error('Block user error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Change password
+// Admin: Unblock user (MUST come before /:id routes)
+router.put('/:id/unblock', auth, async (req, res) => {
+  try {
+    // Only admin can unblock users
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can unblock users.' });
+    }
+
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    
+    // Check if user exists
+    const user = await userModel.getById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updatedUser = await userModel.unblockUser(id);
+    res.json({ 
+      message: 'User unblocked successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Unblock user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Change password (MUST come before /:id routes)
 router.put('/:id/password', [
   auth,
   body('currentPassword').notEmpty().withMessage('Current password is required'),
@@ -146,7 +143,78 @@ router.put('/:id/password', [
   }
 });
 
-// Admin: Delete user
+// Get user by ID (MUST come after specific routes)
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+    
+    // Users can only view their own profile or admin can view any
+    if (req.user.id !== id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    const user = await userModel.getById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Remove password from response
+    const { password: _, ...userResponse } = user;
+    res.json(userResponse);
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update user profile (MUST come after specific routes)
+router.put('/:id', [
+  auth,
+  body('name').notEmpty().withMessage('Name is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    
+    // Users can only update their own profile or admin can update any
+    if (req.user.id !== id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const supabase = req.app.locals.supabase;
+    const userModel = new User(supabase);
+
+    // Get user to verify exists
+    const user = await userModel.getById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updates = {
+      name: req.body.name,
+      bio: req.body.bio,
+      avatar_url: req.body.avatar_url,
+      updated_at: new Date().toISOString()
+    };
+
+    const updatedUser = await userModel.update(id, updates);
+    
+    // Remove password from response
+    const { password: _, ...userResponse } = updatedUser;
+    res.json(userResponse);
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Delete user (MUST come after specific routes)
 router.delete('/:id', auth, async (req, res) => {
   try {
     // Only admin can delete users
@@ -178,74 +246,6 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Admin: Block user
-router.put('/:id/block', auth, async (req, res) => {
-  try {
-    // Only admin can block users
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Only admin can block users.' });
-    }
-
-    const { id } = req.params;
-    const supabase = req.app.locals.supabase;
-    const userModel = new User(supabase);
-    
-    // Check if user exists
-    const user = await userModel.getById(id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Prevent admin from blocking themselves
-    if (id === req.user.id) {
-      return res.status(400).json({ message: 'You cannot block your own account' });
-    }
-
-    // Prevent blocking other admins
-    if (user.role === 'admin') {
-      return res.status(400).json({ message: 'Cannot block admin users' });
-    }
-
-    const updatedUser = await userModel.blockUser(id);
-    res.json({ 
-      message: 'User blocked successfully',
-      user: updatedUser
-    });
-  } catch (error) {
-    console.error('Block user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Admin: Unblock user
-router.put('/:id/unblock', auth, async (req, res) => {
-  try {
-    // Only admin can unblock users
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Only admin can unblock users.' });
-    }
-
-    const { id } = req.params;
-    const supabase = req.app.locals.supabase;
-    const userModel = new User(supabase);
-    
-    // Check if user exists
-    const user = await userModel.getById(id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const updatedUser = await userModel.unblockUser(id);
-    res.json({ 
-      message: 'User unblocked successfully',
-      user: updatedUser
-    });
-  } catch (error) {
-    console.error('Unblock user error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
