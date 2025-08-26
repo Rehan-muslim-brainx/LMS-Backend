@@ -94,32 +94,6 @@ router.put('/:id', [
   }
 });
 
-// Delete user (admin only)
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
-    const supabase = req.app.locals.supabase;
-    const userModel = new User(supabase);
-
-    // Get user to verify exists
-    const user = await userModel.getById(id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    await userModel.delete(id);
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
 // Change password
 router.put('/:id/password', [
   auth,
