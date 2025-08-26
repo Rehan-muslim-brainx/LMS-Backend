@@ -48,7 +48,7 @@ class Enrollment {
       .from('enrollments')
       .select(`
         *,
-        course:courses(title, description, instructor:users!courses_instructor_id_fkey(name))
+        course:courses(title, description, image_url, category, is_active, instructor:users!courses_instructor_id_fkey(name))
       `)
       .eq('user_id', userId)
       .order('enrolled_at', { ascending: false });
@@ -132,6 +132,9 @@ class Enrollment {
 
   // Update enrollment
   async update(enrollmentId, updates) {
+    console.log('🔍 MODEL - update called for enrollment:', enrollmentId);
+    console.log('🔍 MODEL - update with data:', updates);
+    
     const { data, error } = await this.supabase
       .from('enrollments')
       .update(updates)
@@ -139,7 +142,12 @@ class Enrollment {
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('❌ MODEL - update error:', error);
+      throw error;
+    }
+    
+    console.log('✅ MODEL - update successful, returned data:', data);
     return data;
   }
 
@@ -156,6 +164,7 @@ class Enrollment {
 
   // Approve completion (admin only)
   async approveCompletion(enrollmentId, adminUserId) {
+    console.log('🔍 MODEL - approveCompletion called for enrollment:', enrollmentId);
     const updates = {
       status: 'completed',
       completed_at: new Date().toISOString(),
@@ -163,18 +172,25 @@ class Enrollment {
       admin_approved_by: adminUserId
     };
     
-    return await this.update(enrollmentId, updates);
+    console.log('🔍 MODEL - approveCompletion updates:', updates);
+    const result = await this.update(enrollmentId, updates);
+    console.log('✅ MODEL - approveCompletion result:', result);
+    return result;
   }
 
   // Reject completion (admin only)
   async rejectCompletion(enrollmentId, adminUserId, rejectionNotes = null) {
+    console.log('🔍 MODEL - rejectCompletion called for enrollment:', enrollmentId);
     const updates = {
       status: 'active',
       completion_requested_at: null,
       completion_notes: rejectionNotes || 'Completion request rejected'
     };
     
-    return await this.update(enrollmentId, updates);
+    console.log('🔍 MODEL - rejectCompletion updates:', updates);
+    const result = await this.update(enrollmentId, updates);
+    console.log('✅ MODEL - rejectCompletion result:', result);
+    return result;
   }
 
   // Delete enrollment

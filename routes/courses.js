@@ -29,20 +29,81 @@ router.get('/', async (req, res) => {
     }
     
     let courses;
+    const includeInactive = req.query.includeInactive === 'true';
+    
     if (userRole === 'admin' || userRole === 'general') {
-      // Admin and general role users can see all courses
-      courses = await courseModel.getAll();
+      // Admin and general role users can see all courses (including inactive if requested)
+      courses = await courseModel.getAll(includeInactive);
     } else if (userDepartment) {
-      // Regular users see only their department courses
+      // Regular users see only their department courses (active only)
       courses = await courseModel.getByDepartment(userDepartment);
     } else {
-      // Unauthenticated users see all courses (for public view)
-      courses = await courseModel.getAll();
+      // Unauthenticated users see all courses (active only)
+      courses = await courseModel.getAll(false);
     }
     
     res.json(courses);
   } catch (error) {
     console.error('Get courses error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get courses for users (respects activation status and enrollment status)
+router.get('/user-courses', auth, async (req, res) => {
+  try {
+    const supabase = req.app.locals.supabase;
+    const courseModel = new Course(supabase);
+    const Enrollment = require('../models/Enrollment');
+    const enrollmentModel = new Enrollment(supabase);
+    
+    const userId = req.user.id;
+    const userDepartment = req.user.department;
+    const userRole = req.user.role;
+    
+    // Get all courses for user's department (including inactive ones)
+    let allCourses;
+    if (userRole === 'admin' || userRole === 'general') {
+      // Admin users see all courses
+      allCourses = await courseModel.getAll(true);
+    } else {
+      // Get all courses with department filtering (including inactive)
+      const { data, error } = await supabase
+        .from('courses')
+        .select(`
+          *,
+          instructor:users(name, email),
+          lessons:lessons(count)
+        `)
+        .or(`department.eq.${userDepartment},department.eq.general`)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      allCourses = data;
+    }
+    
+    // Get user's enrollments
+    const userEnrollments = await enrollmentModel.getByUser(userId);
+    const enrollmentMap = {};
+    userEnrollments.forEach(enrollment => {
+      enrollmentMap[enrollment.course_id] = enrollment.status;
+    });
+    
+    // Filter courses based on activation status and enrollment status
+    const filteredCourses = allCourses.filter(course => {
+      // Always show active courses
+      if (course.is_active) {
+        return true;
+      }
+      
+      // For inactive courses, only show if user has completed them
+      const enrollmentStatus = enrollmentMap[course.id];
+      return enrollmentStatus === 'completed';
+    });
+    
+    res.json(filteredCourses);
+  } catch (error) {
+    console.error('Get user courses error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -80,9 +141,9 @@ router.post('/', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // Check if user has permission to create courses (admin or general role can create courses)
-    if (req.user.role !== 'admin' && req.user.role !== 'general') {
-      return res.status(403).json({ message: 'Access denied. Only admin or general role users can create courses.' });
+    // Check if user has permission to create courses (only admin can create courses)
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only admin can create courses.' });
     }
 
     const supabase = req.app.locals.supabase;
@@ -239,6 +300,52 @@ router.get('/instructor/:instructorId', async (req, res) => {
     res.json(courses);
   } catch (error) {
     console.error('Get instructor courses error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Activate course (admin only)
+router.patch('/:id/activate', auth, async (req, res) => {
+  try {
+    // Check if user has admin privileges
+    if (req.user.role !== 'admin' && req.user.role !== 'general') {
+      return res.status(403).json({ message: 'Access denied. Only admin users can activate courses.' });
+    }
+
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const courseModel = new Course(supabase);
+
+    const activatedCourse = await courseModel.activate(id);
+    res.json({ 
+      message: 'Course activated successfully', 
+      course: activatedCourse 
+    });
+  } catch (error) {
+    console.error('Activate course error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Deactivate course (admin only)
+router.patch('/:id/deactivate', auth, async (req, res) => {
+  try {
+    // Check if user has admin privileges
+    if (req.user.role !== 'admin' && req.user.role !== 'general') {
+      return res.status(403).json({ message: 'Access denied. Only admin users can deactivate courses.' });
+    }
+
+    const { id } = req.params;
+    const supabase = req.app.locals.supabase;
+    const courseModel = new Course(supabase);
+
+    const deactivatedCourse = await courseModel.deactivate(id);
+    res.json({ 
+      message: 'Course deactivated successfully', 
+      course: deactivatedCourse 
+    });
+  } catch (error) {
+    console.error('Deactivate course error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

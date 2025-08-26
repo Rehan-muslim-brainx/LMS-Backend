@@ -170,7 +170,7 @@ router.post('/:enrollmentId/approve', [
   body('notes').optional().isString().withMessage('Notes must be a string')
 ], async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'general') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -193,7 +193,15 @@ router.post('/:enrollmentId/approve', [
       return res.status(400).json({ message: 'Can only approve completion requests' });
     }
 
+    console.log('🔍 Approving completion for enrollment:', enrollmentId);
+    console.log('🔍 Current enrollment status:', enrollment.status);
+    console.log('🔍 Admin user ID:', req.user.id);
+    
+    console.log('🔍 APPROVE ROUTE - About to call approveCompletion');
     const updatedEnrollment = await enrollmentModel.approveCompletion(enrollmentId, req.user.id);
+    console.log('✅ APPROVE ROUTE - Enrollment updated successfully:', updatedEnrollment);
+    console.log('✅ APPROVE ROUTE - New status:', updatedEnrollment.status);
+    
     res.json(updatedEnrollment);
   } catch (error) {
     console.error('Approve completion error:', error);
@@ -207,7 +215,7 @@ router.post('/:enrollmentId/reject', [
   body('notes').optional().isString().withMessage('Notes must be a string')
 ], async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'general') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -231,7 +239,11 @@ router.post('/:enrollmentId/reject', [
       return res.status(400).json({ message: 'Can only reject completion requests' });
     }
 
+    console.log('🔍 REJECT ROUTE - About to call rejectCompletion');
     const updatedEnrollment = await enrollmentModel.rejectCompletion(enrollmentId, req.user.id, notes);
+    console.log('✅ REJECT ROUTE - Enrollment updated successfully:', updatedEnrollment);
+    console.log('✅ REJECT ROUTE - New status:', updatedEnrollment.status);
+    
     res.json(updatedEnrollment);
   } catch (error) {
     console.error('Reject completion error:', error);

@@ -20,9 +20,9 @@ class Course {
     return data;
   }
 
-  // Get all courses
-  async getAll() {
-    const { data, error } = await this.supabase
+  // Get all courses (only active ones for users)
+  async getAll(includeInactive = false) {
+    let query = this.supabase
       .from('courses')
       .select(`
         *,
@@ -31,6 +31,12 @@ class Course {
       `)
       .order('created_at', { ascending: false });
     
+    // Only show active courses unless specifically requested
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     return data;
   }
@@ -44,6 +50,7 @@ class Course {
         lessons:lessons(count)
       `)
       .eq('instructor_id', instructorId)
+      .eq('is_active', true)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
@@ -60,6 +67,7 @@ class Course {
         lessons:lessons(count)
       `)
       .eq('department', department)
+      .eq('is_active', true)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
@@ -102,6 +110,32 @@ class Course {
     return true;
   }
 
+  // Activate course
+  async activate(courseId) {
+    const { data, error } = await this.supabase
+      .from('courses')
+      .update({ is_active: true })
+      .eq('id', courseId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Deactivate course
+  async deactivate(courseId) {
+    const { data, error } = await this.supabase
+      .from('courses')
+      .update({ is_active: false })
+      .eq('id', courseId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
   // Search courses
   async search(query) {
     const { data, error } = await this.supabase
@@ -110,6 +144,7 @@ class Course {
         *,
         instructor:users(name, email)
       `)
+      .eq('is_active', true)
       .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
       .order('created_at', { ascending: false });
     
