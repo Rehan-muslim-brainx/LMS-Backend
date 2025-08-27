@@ -160,7 +160,7 @@ router.post('/', [
       return res.status(400).json({ message: 'Invalid department. Please select a valid department.' });
     }
 
-    const { title, description, category, price, duration, image_url, document_url, external_link } = req.body;
+    const { title, description, category, price, duration, image_url, document_url, external_link, quiz_link } = req.body;
     const courseModel = new Course(supabase);
 
     const courseData = {
@@ -173,6 +173,7 @@ router.post('/', [
       image_url: image_url || null,
       document_url: document_url || null,
       external_link: external_link || null,
+      quiz_link: quiz_link || null,
       instructor_id: req.user.id,
       created_at: new Date().toISOString()
     };
@@ -237,6 +238,7 @@ router.put('/:id', [
       image_url: req.body.image_url,
       document_url: req.body.document_url,
       external_link: req.body.external_link,
+      quiz_link: req.body.quiz_link,
       updated_at: new Date().toISOString()
     };
 
