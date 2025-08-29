@@ -88,10 +88,40 @@ router.get('/:filename', (req, res) => {
   try {
     const filename = req.params.filename;
     const filePath = path.join(uploadsDir, filename);
+    const { view } = req.query; // Check if view=inline is requested
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'File not found' });
+    }
+
+    // Get file extension to determine content type
+    const ext = path.extname(filename).toLowerCase();
+    
+    // Set appropriate headers for viewing documents online
+    if (ext === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (ext === '.doc' || ext === '.docx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (ext === '.ppt' || ext === '.pptx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+      res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (ext === '.txt') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      // For other file types, check if view=inline is requested
+      if (view === 'inline') {
+        res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+      } else {
+        res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+      }
     }
 
     // Send file
