@@ -176,16 +176,6 @@ router.post('/', [
       document_file
     } = req.body;
 
-    console.log('📝 Course creation request received');
-    console.log('📊 Request data:', {
-      title,
-      category,
-      department,
-      hasImageFile: !!image_file,
-      hasDocumentFile: !!document_file,
-      imageFileSize: image_file ? image_file.base64?.length : 0,
-      documentFileSize: document_file ? document_file.base64?.length : 0
-    });
 
     let finalImageUrl = image_url || null;
     let finalDocumentUrl = document_url || null;

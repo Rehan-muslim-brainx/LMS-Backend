@@ -2,11 +2,11 @@
 const AWS = require('aws-sdk');
 const crypto = require('crypto');
 
-// Configure AWS S3 (using your existing environment variables)
+// Configure AWS S3 (using your updated environment variables)
 const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_KEY,
-  region: process.env.AWS_REGION || 'ap-southeast-1'
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_DEFAULT_REGION || 'ap-southeast-1'
 });
 
 const BUCKET_NAME = process.env.AWS_BUCKET || 'brainx-dev';
@@ -22,7 +22,7 @@ const BUCKET_NAME = process.env.AWS_BUCKET || 'brainx-dev';
 async function uploadBase64ToS3(base64Data, fileName, mimeType, folder = 'uploads') {
   try {
     // Check if S3 is properly configured
-    if (!process.env.AWS_ACCESS_KEY || !process.env.AWS_SECRET_KEY || !process.env.AWS_BUCKET) {
+    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_BUCKET) {
       throw new Error('S3 not configured. Please check your AWS credentials in .env file');
     }
 
