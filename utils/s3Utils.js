@@ -41,6 +41,9 @@ async function uploadBase64ToS3(base64Data, fileName, mimeType, folder = 'upload
     // S3 key (path in bucket)
     const s3Key = `${folder}/${uniqueFileName}`;
     
+    // Sanitize filename for metadata (remove/replace invalid characters)
+    const sanitizedFileName = fileName.replace(/[^\x20-\x7E]/g, '').replace(/[^\w\s.-]/g, '_');
+    
     // Upload parameters
     const uploadParams = {
       Bucket: BUCKET_NAME,
@@ -49,7 +52,7 @@ async function uploadBase64ToS3(base64Data, fileName, mimeType, folder = 'upload
       ContentType: mimeType,
       ACL: 'public-read', // Make file publicly accessible
       Metadata: {
-        originalName: fileName,
+        originalName: sanitizedFileName,
         uploadedAt: new Date().toISOString()
       }
     };
