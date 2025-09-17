@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth');
+const { uploadBase64ToS3, validateBase64, getBase64FileSize } = require('../utils/s3Utils');
 
 const router = express.Router();
 
@@ -53,7 +54,61 @@ const upload = multer({
   }
 });
 
-// Upload document endpoint
+// Upload base64 data to S3 endpoint
+router.post('/base64', auth, async (req, res) => {
+  try {
+    // Check if user is admin or has permission to upload
+    const allowedRoles = ['admin', 'associate_project_manager', 'assistant_project_manager', 'principal_software_engineer'];
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { base64Data, fileName, mimeType, folder } = req.body;
+
+    // Validate required fields
+    if (!base64Data || !fileName || !mimeType) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: base64Data, fileName, mimeType' 
+      });
+    }
+
+    // Validate base64 data
+    if (!validateBase64(base64Data)) {
+      return res.status(400).json({ message: 'Invalid base64 data' });
+    }
+
+    // Check file size (10MB limit)
+    const fileSize = getBase64FileSize(base64Data);
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (fileSize > maxSize) {
+      return res.status(400).json({ 
+        message: `File too large. Maximum size is ${maxSize / (1024 * 1024)}MB` 
+      });
+    }
+
+    // Upload to S3
+    const result = await uploadBase64ToS3(base64Data, fileName, mimeType, folder);
+    
+    res.json({
+      message: 'File uploaded to S3 successfully',
+      url: result.url,
+      key: result.key,
+      fileName: result.fileName,
+      originalName: result.originalName,
+      size: result.size,
+      mimeType: result.mimeType
+    });
+
+  } catch (error) {
+    console.error('Base64 upload error:', error);
+    res.status(500).json({ 
+      message: 'Error uploading file to S3',
+      error: error.message 
+    });
+  }
+});
+
+// Upload document endpoint (legacy - for direct file uploads)
 router.post('/', auth, upload.single('file'), async (req, res) => {
   try {
     // Check if user is admin or has permission to upload

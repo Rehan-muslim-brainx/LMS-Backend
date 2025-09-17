@@ -4,7 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config({ path: __dirname + '/config.env' });
+require('dotenv').config();
 
 
 const app = express();
@@ -108,7 +108,7 @@ let supabase;
 if (supabaseUrl !== 'https://your-project.supabase.co') {
   supabase = createClient(supabaseUrl, supabaseKey);
 } else {
-  console.log('⚠️  Supabase not configured. Please update backend/config.env with your Supabase credentials.');
+  console.log('⚠️  Supabase not configured. Please update backend/.env with your Supabase credentials.');
   console.log('📝 For now, the API will run without database connection.');
   supabase = null;
 }
@@ -123,7 +123,7 @@ try {
   app.use('/api/users', require('./routes/users'));
   app.use('/api/enrollments', require('./routes/enrollments'));
   app.use('/api/lessons', require('./routes/lessons'));
-  // Upload route is now handled inline above
+  app.use('/api/upload', require('./routes/upload'));
   app.use('/api/departments', require('./routes/departments'));
   console.log('✅ All routes loaded successfully');
 } catch (error) {
@@ -206,41 +206,7 @@ app.post('/api/departments', async (req, res) => {
 
 console.log('✅ Departments routes are now available');
 
-// Define upload routes OUTSIDE the try-catch to ensure they're always available
-console.log('📁 Setting up upload routes...');
-
-// Simple upload endpoint (minimal implementation)
-app.post('/api/upload', (req, res) => {
-  try {
-    console.log('📁 Upload request received');
-    
-    // Get the host from the request to build the correct URL
-    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = req.get('host');
-    const baseUrl = `${protocol}://${host}`;
-    
-    // Generate a unique filename
-    const timestamp = Date.now();
-    const filename = `document-${timestamp}.docx`;
-    const fullUrl = `${baseUrl}/uploads/${filename}`;
-    
-    console.log('Generated URL:', fullUrl);
-    
-    res.json({
-      message: 'Upload endpoint is working',
-      url: fullUrl,
-      filename: filename,
-      originalName: 'uploaded-file',
-      size: 0,
-      mimetype: 'application/octet-stream'
-    });
-  } catch (error) {
-    console.error('❌ Upload error:', error);
-    res.status(500).json({ message: 'Upload service error' });
-  }
-});
-
-console.log('✅ Upload routes are now available');
+// Upload routes are now handled by routes/upload.js
 
 // Test route to verify routing is working
 app.get('/api/debug', (req, res) => {

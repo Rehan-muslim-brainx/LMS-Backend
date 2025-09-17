@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Course = require('../models/Course');
 const auth = require('../middleware/auth');
+const { processFileUpload } = require('../utils/s3Utils');
 
 const router = express.Router();
 
@@ -160,9 +161,48 @@ router.post('/', [
       return res.status(400).json({ message: 'Invalid department. Please select a valid department.' });
     }
 
-    const { title, description, category, price, duration, image_url, document_url, external_link, quiz_link } = req.body;
-    const courseModel = new Course(supabase);
+    const { 
+      title, 
+      description, 
+      category, 
+      price, 
+      duration, 
+      image_url, 
+      document_url, 
+      external_link, 
+      quiz_link,
+      // New file object structure
+      image_file,
+      document_file
+    } = req.body;
 
+
+    let finalImageUrl = image_url || null;
+    let finalDocumentUrl = document_url || null;
+
+    // Process image file upload
+    if (image_file) {
+      try {
+        finalImageUrl = await processFileUpload(image_file, 'courses/images', 'image');
+      } catch (error) {
+        return res.status(500).json({ 
+          message: error.message 
+        });
+      }
+    }
+
+    // Process document file upload
+    if (document_file) {
+      try {
+        finalDocumentUrl = await processFileUpload(document_file, 'courses/documents', 'document');
+      } catch (error) {
+        return res.status(500).json({ 
+          message: error.message 
+        });
+      }
+    }
+
+    // Create course data object
     const courseData = {
       title,
       description,
@@ -170,15 +210,27 @@ router.post('/', [
       department: department || 'General',
       price: price || 0,
       duration: duration || 0,
-      image_url: image_url || null,
-      document_url: document_url || null,
+      image_url: finalImageUrl,
+      document_url: finalDocumentUrl,
       external_link: external_link || null,
       quiz_link: quiz_link || null,
       instructor_id: req.user.id,
       created_at: new Date().toISOString()
     };
 
+    console.log('💾 Creating course with data:', {
+      title: courseData.title,
+      department: courseData.department,
+      hasImage: !!courseData.image_url,
+      hasDocument: !!courseData.document_url,
+      imageUrl: courseData.image_url,
+      documentUrl: courseData.document_url
+    });
+
+    const courseModel = new Course(supabase);
     const course = await courseModel.create(courseData);
+    
+    console.log('✅ Course created successfully:', course.id);
     res.status(201).json(course);
   } catch (error) {
     console.error('Create course error:', error);
