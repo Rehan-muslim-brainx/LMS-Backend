@@ -16,7 +16,7 @@ app.set('trust proxy', 1);
 // Middleware
 app.use(helmet());
 
-// CORS configuration - Allow all origins with detailed logging
+// CORS configuration - Allow all origins with comprehensive preflight support
 app.use(cors({
   origin: function (origin, callback) {
     console.log('CORS request from origin:', origin);
@@ -25,20 +25,32 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  optionsSuccessStatus: 200
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept', 
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 }));
 
-// Additional manual CORS headers as backup
+// Additional CORS middleware for comprehensive preflight handling
 app.use((req, res, next) => {
+  // Set CORS headers for all responses
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
   res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('Handling preflight request for:', req.url);
+    console.log('Handling preflight request for:', req.url, 'from origin:', req.headers.origin);
     res.status(200).end();
     return;
   }
@@ -115,6 +127,25 @@ if (supabaseUrl !== 'https://your-project.supabase.co') {
 
 // Make supabase available to routes
 app.locals.supabase = supabase;
+
+// Specific preflight handler for upload routes
+app.options('/api/upload/*', (req, res) => {
+  console.log('📤 Upload preflight request for:', req.url);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Max-Age', '86400');
+  res.status(200).end();
+});
+
+app.options('/api/courses', (req, res) => {
+  console.log('📚 Courses preflight request for:', req.url);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Max-Age', '86400');
+  res.status(200).end();
+});
 
 // Routes with error handling
 try {
